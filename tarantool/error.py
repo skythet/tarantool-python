@@ -168,7 +168,7 @@ def warn(message, warning_class):
     warnings.warn_explicit(message, warning_class, module_name, line_no)
 
 _strerror = {
-    0:   ("ER_UNKNOWN", "Unknown error"),
+    0:   ("ER_OK", "Unknown error"),
     1:   ("ER_ILLEGAL_PARAMS", "Illegal parameters, %s"),
     2:   ("ER_MEMORY_ISSUE", "Failed to allocate %u bytes in %s for %s"),
     3:   ("ER_TUPLE_FOUND", "Duplicate key exists in unique index '%s' in space '%s'"),

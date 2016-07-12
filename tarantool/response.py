@@ -12,7 +12,10 @@ from tarantool.const import (
     IPROTO_ERROR,
     IPROTO_SYNC,
     IPROTO_SCHEMA_ID,
-    REQUEST_TYPE_ERROR
+    REQUEST_TYPE_ERROR,
+    RESPONSE_OK,
+    RESPONSE_ERROR,
+    RESPONSE_REQUEST
 )
 from tarantool.error import DatabaseError, tnt_strerror, SchemaReloadException
 
@@ -51,6 +54,11 @@ class Response(collections.Sequence):
         unpacker.feed(response)
         header = unpacker.unpack()
 
+        # Type is retu
+        # 0 (RESPONSE_OK) for Ok
+        # 1 (RESPONSE_ERROR) for Error
+        # 2 (RESPONSE_REQUEST) for Request (for SUBSCRIBE/JOIN requests)
+        self._response_type = RESPONSE_OK
         self.conn  = conn
         self._sync = header.get(IPROTO_SYNC, 0)
         self._code = header[IPROTO_CODE]
@@ -62,18 +70,16 @@ class Response(collections.Sequence):
             pass
 
         if self._code < REQUEST_TYPE_ERROR:
+            if self._code > 0:
+                self._response_type = RESPONSE_REQUEST
             self._return_code = 0
             self._schema_version = header.get(IPROTO_SCHEMA_ID, None)
             self._data = self._body.get(IPROTO_DATA, None)
             if not isinstance(self._data, (list, tuple)) and self._data is not None:
                 self._data = [self._data]
-            # # Backward-compatibility
-            # if isinstance(self._data, (list, tuple)):
-            #     self.extend(self._data)
-            # else:
-            #     self.append(self._data)
         else:
             # Separate return_code and completion_code
+            self._response_type = RESPONSE_ERROR
             self._return_message = self._body.get(IPROTO_ERROR, "")
             self._return_code = self._code & (REQUEST_TYPE_ERROR - 1)
             self._data = []
@@ -202,6 +208,16 @@ class Response(collections.Sequence):
         return self._return_message
 
     @property
+    def response_type(self):
+        '''
+        :type: num
+
+        Type of response, is everything OK, or ERROR happened or is it REQUEST.
+        (constants: ``RESPONSE_OK``, ``RESPONSE_ERROR``, ``RESPONSE_REQUEST``)
+        '''
+        return self._response_type
+
+    @property
     def schema_version(self):
         '''
         :type: int
@@ -217,7 +233,7 @@ class Response(collections.Sequence):
 
         :rtype: str or None
         '''
-        if self.return_code:
+        if self._response_type == RESPONSE_ERROR:
             return yaml.dump({
                 'error': {
                     'code'  : self.strerror[0],
